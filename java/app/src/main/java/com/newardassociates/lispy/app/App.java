@@ -3,7 +3,11 @@
  */
 package com.newardassociates.lispy.app;
 
+import com.newardassociates.lispy.SExprReader;
+
 public class App {
+    private static String inputFile = null;
+
     public static float version() {
         return 0.1f;
     }
@@ -14,5 +18,6 @@ public class App {
 
     public static void main(String[] args) {
         System.out.println(banner());
+
     }
 }

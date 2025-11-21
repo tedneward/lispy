@@ -11,12 +11,6 @@ import java.util.Map;
  * @author Ted Neward
  */
 public class Env {
-/*
-    def find(self, var):
-        "Find the innermost Env where var appears."
-        return self if (var in self) else self.outer.find(var)
-
-*/
     private Map<String, Object> env = new HashMap<>();
     private Env outer = null;
 
@@ -32,6 +26,19 @@ public class Env {
     public Env() { }
 
     public void set(String key, Object value) {
+        // Always look local first before checking
+        // outer scope(s)
+        //
+        if (this.env.containsKey(key)) {
+            this.env.put(key, value);
+            return;
+        }
+
+        if (this.outer != null && this.outer.env.containsKey(key)) {
+            this.outer.env.put(key, value);
+            return;
+        }
+
         this.env.put(key, value);
     }
 
@@ -41,9 +48,10 @@ public class Env {
         //
         if (this.env.containsKey(key))
             return this.env.get(key);
-        else if (this.outer != null)
+
+        if (this.outer != null)
             return this.outer.get(key);
-        else
-            return null;
+
+        return null;
     }    
 }

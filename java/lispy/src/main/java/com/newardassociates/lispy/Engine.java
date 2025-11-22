@@ -35,8 +35,10 @@ public class Engine {
     }
 
     public Object eval(SExprReader.SExpr sexpr) throws java.io.IOException {
-        if (sexpr instanceof SExprReader.ListExpr) {
-            return eval((SExprReader.ListExpr)sexpr);
+        if (sexpr == null) {
+            return null;
+        } else if (sexpr instanceof SExprReader.ListExpr) {
+            return eval(((SExprReader.ListExpr)sexpr).value);
         } else if (sexpr instanceof SExprReader.Atom) {
             return eval((SExprReader.Atom)sexpr);
         } else if (sexpr instanceof SExprReader.StringLiteral) {
@@ -46,39 +48,61 @@ public class Engine {
         }
     }
 
-    public Object eval(List<SExprReader.SExpr> token) throws java.io.IOException {
-        if (token.get(0) instanceof SExprReader.Atom) {
-            String verb = ((SExprReader.Atom)token.get(0)).value;
+    public Object eval(List<SExprReader.SExpr> list) throws java.io.IOException {
+        if (list.size() == 0) {
+            return null;
+        }
+
+        if (list.get(0) instanceof SExprReader.Atom) {
+            String verb = ((SExprReader.Atom)list.get(0)).value;
             if (verb.equals("begin")) {
                 Object result = null;
-                for (int i = 1; i < token.size(); i++) {
-                    result = eval((SExprReader.SExpr)token.get(i));
+                for (int i = 1; i < list.size(); i++) {
+                    result = eval((SExprReader.SExpr)list.get(i));
                 }
                 return result;
             }
-            else if (verb.equals("+") || verb.equals("*")) {
-                boolean add = verb.equals("+") ? 0 : 1;
-                int iAcc = add ? 0 : 1;
-                double dAcc = add ? 0.0 : 1.0;
-                boolean isDouble = false;
-                for (int i = 1; i < token.size(); i++) {
-                    Object val = eval(token.get(i));
-                    if (isDouble) {
-                        dAcc = (add ? dAcc + ((Number)val).doubleValue() : dAcc * ((Number)val).doubleValue());
-                    } else if (val instanceof Double) {
-                        isDouble = true;
-                        dAcc = add ? iAcc + ((Double)val).doubleValue() : iAcc * ((Double)val).doubleValue();
+            else if (verb.equals("+")) {
+                Object accum = Integer.valueOf(0);
+                for (int i = 1; i < list.size(); i++) {
+                    Object val = eval(list.get(i));
+                    if (accum instanceof Double || val instanceof Double) {
+                        accum = ((Number)accum).doubleValue() + ((Number)val).doubleValue();
                     } else {
-                        iAcc = add ? iAcc + ((Number)val).intValue() : iAcc * ((Number)val).intValue();
+                        accum = ((Number)accum).intValue() + ((Number)val).intValue();
+                    }
                 }
-                return acc;
+                return accum;
+            }
+            else if (verb.equals("*")) {
+                Object accum = Integer.valueOf(1);
+                for (int i = 1; i < list.size(); i++) {
+                    Object val = eval(list.get(i));
+                    if (accum instanceof Double || val instanceof Double) {
+                        accum = ((Number)accum).doubleValue() * ((Number)val).doubleValue();
+                    } else {
+                        accum = ((Number)accum).intValue() * ((Number)val).intValue();
+                    }
+                }
+                return accum;
             }
             else if (verb.equals("-")) {
-                return eval(token.get(1)) - eval(token.get(2));
+                Object lhs = eval(list.get(1));
+                Object rhs = eval(list.get(2));
+                if (lhs instanceof Double || rhs instanceof Double) {
+                    return ((Number)lhs).doubleValue() - ((Number)rhs).doubleValue();
+                } else {
+                    return ((Number)lhs).intValue() - ((Number)rhs).intValue();
+                }
             } 
             else if (verb.equals("/")) {
-                SExprReader.Atom atom = (SExprReader.Atom)token.get(1);
-                return 1 / atom.toInteger();
+                Object lhs = eval(list.get(1));
+                Object rhs = eval(list.get(2));
+                if (lhs instanceof Double || rhs instanceof Double) {
+                    return ((Number)lhs).doubleValue() / ((Number)rhs).doubleValue();
+                } else {
+                    return ((Number)lhs).intValue() / ((Number)rhs).intValue();
+                }
             }
         }
         else {
@@ -87,19 +111,18 @@ public class Engine {
 
         return null;
     }
-    public Object eval(SExprReader.Atom sexpr) throws java.io.IOException {
-        String val = atom.value;
+    public Object evalAtom(SExprReader.Atom sexpr) throws java.io.IOException {
         try {
-            return atom.toInteger();
+            return sexpr.toInteger();
         } catch (NumberFormatException nfe) {
             try {
-                return atom.toDouble();
+                return sexpr.toDouble();
             } catch (NumberFormatException nfe2) {
-                return val;
+                return sexpr.value;
             }
         }
     }
-    public Object eval(SExprReader.StringLiteral sexpr) throws java.io.IOException {
+    public Object evalStringLiteral(SExprReader.StringLiteral sexpr) {
         return sexpr.value;
     }
 }

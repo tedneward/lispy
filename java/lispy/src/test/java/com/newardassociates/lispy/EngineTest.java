@@ -16,6 +16,31 @@ public class EngineTest {
     @Test void testEvalEmptyProgram() throws java.io.IOException {
         String program = "";
         Object expected = null;
+
+        try (SExprReader reader = new SExprReader(new java.io.StringReader(program))) {
+            Object actual = new Engine().eval(reader.parse());
+            assertEquals(expected, actual);
+        }
+    }
+
+    @Test void testEvalAnotherEmptyProgram() throws java.io.IOException {
+        String program = "()";
+        Object expected = null;
+
+        try (SExprReader reader = new SExprReader(new java.io.StringReader(program))) {
+            Object actual = new Engine().eval(reader.parse());
+            assertEquals(expected, actual);
+        }
+    }
+
+    @Test void testEvalYetAnotherEmptyProgram() throws java.io.IOException {
+        String program = "(begin)";
+        Object expected = null;
+
+        try (SExprReader reader = new SExprReader(new java.io.StringReader(program))) {
+            Object actual = new Engine().eval(reader.parse());
+            assertEquals(expected, actual);
+        }
     }
 
     /*

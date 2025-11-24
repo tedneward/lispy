@@ -236,7 +236,7 @@ public abstract class SchemeUtils {
       Object[] vec = (Object[])x;
       Pair result = null;
       for (int i = vec.length - 1; i >= 0; i--) 
-	result = cons(vec[i], result);
+	      result = cons(vec[i], result);
       return result;
     } else {
       error("expected a vector, got: " + x);

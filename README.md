@@ -3,7 +3,7 @@ Peter Norvig's lis.py (a Lisp written in Python), captured from his website
 
 ---
 
-# lis.py: [(How to Write a (Lisp) Interpreter (in Python))]((https://norvig.com/lispy.html)): 
+# lis.py: [(How to Write a (Lisp) Interpreter (in Python))](https://norvig.com/lispy.html):
 
 ## Language 1: Lispy Calculator
 

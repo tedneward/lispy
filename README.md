@@ -1,9 +1,13 @@
 # lispy
 Peter Norvig's lis.py (a Lisp written in Python), captured from his website
 
-# lis.py
+---
+
+# lis.py: [(How to Write a (Lisp) Interpreter (in Python))]((https://norvig.com/lispy.html)): 
 
 
+
+---
 
 # lispy.py: [(An ((Even Better) Lisp) Interpreter (in Python))](https://norvig.com/lispy2.html)
 
@@ -282,10 +286,32 @@ def expand\_quasiquote(x):    """Expand \`x => 'x; \`,x => x; \`(,@x y) => (ap
 
 Here we augment add\_globals with some more primitive Scheme procedures, bringing the total to 75. There are still around 80 missing ones; they could also be added here if desired.
 
-def is\_pair(x): return x != \[\] and isa(x, list)  
-  
-def add\_globals(self):    "Add some Scheme standard procedures."    import math, cmath, operator as op  
-    self.update(vars(math))    self.update(vars(cmath))    self.update({     '+':op.add, '-':op.sub, '\*':op.mul, '/':op.div, 'not':op.not\_,      '>':op.gt, '<':op.lt, '>=':op.ge, '<=':op.le, '=':op.eq,      'equal?':op.eq, 'eq?':op.is\_, 'length':len, 'cons':lambda x,y:\[x\]+list(y),      'car':lambda x:x\[0\], 'cdr':lambda x:x\[1:\], 'append':op.add,       'list':lambda \*x:list(x), 'list?': lambda x:isa(x,list),     'null?':lambda x:x\==\[\], 'symbol?':lambda x: isa(x, Symbol),     'boolean?':lambda x: isa(x, bool), 'pair?':is\_pair,      'port?': lambda x:isa(x,file), 'apply':lambda proc,l: proc(\*l),      'eval':lambda x: eval(expand(x)), 'load':lambda fn: load(fn), 'call/cc':callcc,     'open-input-file':open,'close-input-port':lambda p: p.file.close(),      'open-output-file':lambda f:open(f,'w'), 'close-output-port':lambda p: p.close(),     'eof-object?':lambda x:x is eof\_object, 'read-char':readchar,     'read':read, 'write':lambda x,port\=sys.stdout:port.write(to\_string(x)),     'display':lambda x,port\=sys.stdout:port.write(x if isa(x,str) else to\_string(x))})    return self  
+    def is\_pair(x): return x != \[\] and isa(x, list)  
+    
+    def add\_globals(self):
+        "Add some Scheme standard procedures."
+        import math, cmath, operator as op  
+
+        self.update(vars(math))
+        self.update(vars(cmath))
+
+        self.update({
+             '+':op.add, '-':op.sub, '\*':op.mul, '/':op.div, 'not':op.not\_,
+             '>':op.gt, '<':op.lt, '>=':op.ge, '<=':op.le, '=':op.eq,
+             'equal?':op.eq, 'eq?':op.is\_, 'length':len, 'cons':lambda x,y:\[x\]+list(y),
+             'car':lambda x:x\[0\], 'cdr':lambda x:x\[1:\], 'append':op.add,
+             'list':lambda \*x:list(x), 'list?': lambda x:isa(x,list),
+             'null?':lambda x:x\==\[\], 'symbol?':lambda x: isa(x, Symbol),
+             'boolean?':lambda x: isa(x, bool), 'pair?':is\_pair,
+             'port?': lambda x:isa(x,file), 'apply':lambda proc,l: proc(\*l),
+             'eval':lambda x: eval(expand(x)), 'load':lambda fn: load(fn), 'call/cc':callcc,
+             'open-input-file':open,'close-input-port':lambda p: p.file.close(),
+             'open-output-file':lambda f:open(f,'w'), 'close-output-port':lambda p: p.close(),
+             'eof-object?':lambda x:x is eof\_object, 'read-char':readchar,
+             'read':read, 'write':lambda x,port\=sys.stdout:port.write(to\_string(x)),
+             'display':lambda x,port\=sys.stdout:port.write(x if isa(x,str) else to\_string(x))})
+             
+        return self  
   
 isa \= isinstance  
   
@@ -402,3 +428,9 @@ python lispytest.py
      2 ; more ; comments ; ) )  
      3) ; final comment => (1 2 3)  
 \*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\* lispy.py: 0 out of 81 tests fail.
+
+---
+
+# [jscheme](https://norvig.com/jscheme.html)
+
+An interpreter for Scheme R4RS written in Java 1.1 (version 1.4 released in April 98, according to Norvig).

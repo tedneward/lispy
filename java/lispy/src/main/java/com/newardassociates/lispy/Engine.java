@@ -41,8 +41,6 @@ public class Engine {
             return eval(((SExprReader.ListExpr)sexpr).value);
         } else if (sexpr instanceof SExprReader.Atom) {
             return eval((SExprReader.Atom)sexpr);
-        } else if (sexpr instanceof SExprReader.StringLiteral) {
-            return eval((SExprReader.StringLiteral)sexpr);
         } else {
             throw new java.io.IOException("Unknown SExpr type: " + sexpr.getClass().getName());
         }
@@ -53,8 +51,9 @@ public class Engine {
             return null;
         }
 
-        if (list.get(0) instanceof SExprReader.Atom) {
-            String verb = ((SExprReader.Atom)list.get(0)).value;
+        SExprReader.SExpr first = list.get(0);
+        if ((first instanceof SExprReader.Atom) && ((SExprReader.Atom)first).isSymbol) {
+            String verb = ((SExprReader.Atom)first).toSymbol();
             if (verb.equals("begin")) {
                 Object result = null;
                 for (int i = 1; i < list.size(); i++) {
@@ -112,17 +111,15 @@ public class Engine {
         return null;
     }
     public Object evalAtom(SExprReader.Atom sexpr) throws java.io.IOException {
-        try {
+        if (sexpr.isSymbol) {
+            return sexpr.toSymbol();
+        } else if (sexpr.isStringLiteral) {
+            return sexpr.toStringLiteral();
+        } else if (sexpr.isInteger) {
             return sexpr.toInteger();
-        } catch (NumberFormatException nfe) {
-            try {
-                return sexpr.toDouble();
-            } catch (NumberFormatException nfe2) {
-                return sexpr.value;
-            }
+        } else if (sexpr.isDouble) {
+            return sexpr.toDouble();
         }
-    }
-    public Object evalStringLiteral(SExprReader.StringLiteral sexpr) {
-        return sexpr.value;
+        throw new java.io.IOException("Unknown Atom type: " + sexpr.toString());
     }
 }

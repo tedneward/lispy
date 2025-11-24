@@ -17,19 +17,63 @@ import java.util.LinkedList;
  */
 public class SExprReader implements AutoCloseable {
 
+    // SExprs are basically either Atoms or Lists.
+    // If they are Atoms, they can be either symbols, string literals,
+    // or numbers (int or float).
+    // For simplicity, we just treat everything as strings here,
+    // and let the evaluator handle type interpretation.
+    //
     public interface SExpr {}
     public static class Atom implements SExpr {
-        public final String value;
-        public Atom(String v) { this.value = v; }
-        public String toString() { return value; }
-        public Integer toInteger() { return Integer.parseInt(this.value); }
-        public Double toDouble() { return Double.parseDouble(this.value); }
-    }
+        public final Object value; 
+        public final boolean isSymbol;
+        public final boolean isStringLiteral;
+        public final boolean isNumber;
+        public final boolean isInteger;
+        public final boolean isDouble;
 
-    public static class StringLiteral implements SExpr {
-        public final String value;
-        public StringLiteral(String v) { this.value = v; }
-        public String toString() { return "\"" + value + "\""; }
+        public Atom(String v) { 
+            if (v == null) {
+                throw new RuntimeException("Atom value cannot be null");
+            }
+
+            // Figure out what this is
+            if (v.startsWith("\"") && v.endsWith("\"")) {
+                // String literal
+                isSymbol = false;
+                isStringLiteral = true;
+                isNumber = isInteger = isDouble = false;
+                value = v.substring(1, v.length() - 1);
+            } else if (v.matches("-?\\d+")) {
+                // Integer
+                isSymbol = false;
+                isStringLiteral = false;
+                isNumber = true;
+                isInteger = true;
+                isDouble = false;
+                value = Integer.parseInt(v);
+            } else if (v.matches("-?\\d*\\.\\d+")) {
+                // Double
+                isSymbol = false;
+                isStringLiteral = false;
+                isNumber = true;
+                isDouble = true;
+                isInteger = false;
+                value = Double.parseDouble(v);
+            } else {
+                // Symbol
+                isSymbol = true;
+                isStringLiteral = false;
+                isNumber = isInteger = isDouble = false;
+                value = v;
+            }
+        }
+        public String toString() { return value.toString(); }
+
+        public String toSymbol() { return (String)value; }
+        public String toStringLiteral() { return "\"" + ((String)value) + "\""; }
+        public Integer toInteger() { return (Integer)value; }
+        public Double toDouble() { return (Double)this.value; }
     }
 
     public static class ListExpr implements SExpr {
@@ -118,10 +162,10 @@ public class SExprReader implements AutoCloseable {
         return new Atom(sb.toString());
     }
 
-    private StringLiteral parseString() throws IOException {
+    private Atom parseString() throws IOException {
         expect('"');
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder("\"");
         while (true) {
             int c = read();
             if (c == -1) throw new RuntimeException("Unexpected EOF in string literal");
@@ -137,13 +181,15 @@ public class SExprReader implements AutoCloseable {
                     default:  sb.append((char)esc); break; // raw escape
                 }
             } else if (c == '"') {
+                sb.append('"');
                 break; // end of string
             } else {
                 sb.append((char)c);
             }
         }
 
-        return new StringLiteral(sb.toString());
+        System.out.println("Parsed string literal: " + sb.toString());
+        return new Atom(sb.toString());
     }
 
     private void skipWhitespaceAndComments() throws IOException {

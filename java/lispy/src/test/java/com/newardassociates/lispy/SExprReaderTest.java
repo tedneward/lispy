@@ -25,39 +25,6 @@ public class SExprReaderTest {
             "(list 1 2 3)\n";
 
         SExprReader r = new SExprReader(new java.io.StringReader(data));
-
-        SExpr e1 = r.parse();
-        assertTrue(e1 instanceof SExprReader.ListExpr);
-        ListExpr list1 = (ListExpr)e1;
-        assertEquals(3, list1.value.size());
-        assertTrue(list1.value.get(0) instanceof SExprReader.Atom);
-        assertEquals("define", ((SExprReader.Atom)list1.value.get(0)).value);
-        assertTrue(list1.value.get(1) instanceof SExprReader.Atom);
-        assertEquals("name", ((SExprReader.Atom)list1.value.get(1)).value);
-        assertTrue(list1.value.get(2) instanceof SExprReader.StringLiteral);
-        assertEquals("ChatGPT", ((SExprReader.StringLiteral)list1.value.get(2)).value);
-
-        SExpr e2 = r.parse();
-        assertTrue(e2 instanceof SExprReader.ListExpr);
-        ListExpr list2 = (ListExpr)e2;
-        assertEquals(4, list2.value.size());
-        assertTrue(list2.value.get(0) instanceof SExprReader.Atom);
-        assertEquals("list", ((SExprReader.Atom)list2.value.get(0)).value);
-        assertTrue(list2.value.get(1) instanceof SExprReader.Atom);
-        assertEquals("1", ((SExprReader.Atom)list2.value.get(1)).value);
-        assertTrue(list2.value.get(2) instanceof SExprReader.Atom);
-        assertEquals("2", ((SExprReader.Atom)list2.value.get(2)).value);
-        assertTrue(list2.value.get(3) instanceof SExprReader.Atom);
-        assertEquals("3", ((SExprReader.Atom)list2.value.get(3)).value);
-    }
-
-    @Test void testSimpleSchemeProgramTokens() throws java.io.IOException {
-        String data =
-            "(begin\n" +
-            "  (define r 10)\n" +
-            "  (* pi (* r r)))\n";
-
-        SExprReader r = new SExprReader(new java.io.StringReader(data));
         SExpr sexpr;
         while ((sexpr = r.parse()) != null) {
             // Just consume for now
@@ -72,6 +39,55 @@ public class SExprReaderTest {
         ListExpr list1 = (ListExpr)e1;
         assertEquals(3, list1.value.size());
         assertTrue(list1.value.get(0) instanceof SExprReader.Atom);
+        assertTrue(((SExprReader.Atom)list1.value.get(0)).isSymbol);
+        assertEquals("define", ((SExprReader.Atom)list1.value.get(0)).value);
+
+        assertTrue(list1.value.get(1) instanceof SExprReader.Atom);
+        assertTrue(((SExprReader.Atom)list1.value.get(0)).isSymbol);
+        assertEquals("name", ((SExprReader.Atom)list1.value.get(1)).value);
+
+        assertTrue(list1.value.get(2) instanceof SExprReader.Atom);
+        assertTrue(((SExprReader.Atom)list1.value.get(2)).isStringLiteral);
+        assertEquals("\"ChatGPT\"", ((SExprReader.Atom)list1.value.get(2)).toStringLiteral());
+
+        SExpr e2 = r.parse();
+        assertTrue(e2 instanceof SExprReader.ListExpr);
+        ListExpr list2 = (ListExpr)e2;
+        assertEquals(4, list2.value.size());
+        assertTrue(list2.value.get(0) instanceof SExprReader.Atom);
+        assertEquals("list", ((SExprReader.Atom)list2.value.get(0)).value);
+        assertTrue(list2.value.get(1) instanceof SExprReader.Atom);
+        assertEquals(1, ((SExprReader.Atom)list2.value.get(1)).toInteger());
+        assertTrue(list2.value.get(2) instanceof SExprReader.Atom);
+        assertEquals(2, ((SExprReader.Atom)list2.value.get(2)).toInteger());
+        assertTrue(list2.value.get(3) instanceof SExprReader.Atom);
+        assertEquals(3, ((SExprReader.Atom)list2.value.get(3)).toInteger());
+    }
+
+    @Test void testSimpleSchemeProgramTokens() throws java.io.IOException {
+        String data =
+            "(begin\n" +
+            "  (define r 10)\n" +
+            "  (* pi (* r r)))\n";
+
+        SExprReader r = new SExprReader(new java.io.StringReader(data));
+
+        /*
+        SExpr sexpr;
+        while ((sexpr = r.parse()) != null) {
+            // Just consume for now
+            System.out.println("Parsed: " + sexpr.toString());
+        }
+        // Reset for assertions use
+        r = new SExprReader(new java.io.StringReader(data));
+        */
+
+        SExpr e1 = r.parse();
+        assertTrue(e1 instanceof SExprReader.ListExpr);
+        ListExpr list1 = (ListExpr)e1;
+        assertEquals(3, list1.value.size());
+        assertTrue(list1.value.get(0) instanceof SExprReader.Atom);
+        assertTrue(((SExprReader.Atom)list1.value.get(0)).isSymbol);
         assertEquals("begin", ((SExprReader.Atom)list1.value.get(0)).value);
     }
 
@@ -107,7 +123,8 @@ public class SExprReaderTest {
         assertEquals(1, list.value.size());
         SExpr e2 = list.value.get(0);
         assertTrue(e2 instanceof SExprReader.Atom);
-        assertEquals("42", ((SExprReader.Atom)e2).value);
+        assertTrue(((SExprReader.Atom)e2).isInteger);
+        assertEquals(42, ((SExprReader.Atom)e2).toInteger());
     }
 
     @Test void testString() throws java.io.IOException {
@@ -124,8 +141,8 @@ public class SExprReaderTest {
         SExprReader r = new SExprReader(new java.io.StringReader(data));
 
         SExpr e1 = r.parse();
-        assertTrue(e1 instanceof StringLiteral);
-        assertEquals("\"d e f\"", e1.toString());
+        assertTrue(e1 instanceof Atom && ((Atom)e1).isStringLiteral);
+        assertEquals("\"d e f\"", ((Atom)e1).toStringLiteral());
     }
 
     @Test void testEOFLoop() throws java.io.IOException {

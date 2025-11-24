@@ -5,7 +5,339 @@ Peter Norvig's lis.py (a Lisp written in Python), captured from his website
 
 # lis.py: [(How to Write a (Lisp) Interpreter (in Python))]((https://norvig.com/lispy.html)): 
 
+## Language 1: Lispy Calculator
 
+_Lispy Calculator_ is a subset of Scheme using only five syntactic forms (two atomic, two special forms, and the procedure call). Lispy Calculator lets you do any computation you could do on a typical calculator—as long as you are comfortable with prefix notation. And you can do two things that are not offered in typical calculator languages: "if" expressions, and the definition of new variables. Here's an example program, that computes the area of a circle of radius 10, using the formula π _r_2:
+
+    (define r 10)  
+    (\* pi (\* r r))
+
+Here is a table of all the allowable expressions:
+
+Expression | Syntax | Semantics and Example
+---------- | ------ | --------------------------------
+[variable reference](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.1) | _symbol_ | A symbol is interpreted as a variable name; its value is the variable's value. Example: `r ⇒ 10` (assuming r was previously defined to be 10)
+[constant literal](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.2) | _number_ | A number evaluates to itself.  Examples: `12 ⇒ 12` _or_ `-3.45e+6 ⇒ -3.45e+6`
+[conditional](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.5) | `(if` _test conseq alt_`)` | Evaluate _test_; if true, evaluate and return _conseq_; otherwise _alt_.  Example: `(if (> 10 20) (+ 1 1) (+ 3 3)) ⇒ 6`
+[definition](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-8.html#%_sec_5.2) | `(define` _symbol_ _exp_`)` | Define a new variable and give it the value of evaluating the expression _exp_.  Examples: `(define r 10)`
+[procedure call](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.3) | `(`_proc arg..._`)` | If _proc_ is anything other than one of the symbols if, define, or quote then it is treated as a procedure. Evaluate _proc_ and all the _args_, and then the procedure is applied to the list of _arg_ values. Example: `(sqrt (* 2 8))` ⇒ `4.0`
+
+In the Syntax column of this table, _symbol_ must be a symbol, _number_ must be an integer or floating point number, and the other italicized words can be any expression. The notation _arg..._ means zero or more repetitions of _arg_.
+
+## What A Language Interpreter Does
+
+A language interpreter has two parts:
+
+1.  **Parsing:** The parsing component takes an input program in the form of a sequence of characters, verifies it according to the _syntactic rules_ of the language, and translates the program into an internal representation. In a simple interpreter the internal representation is a tree structure (often called an _abstract syntax tree_) that closely mirrors the nested structure of statements or expressions in the program. In a language translator called a _compiler_ there is often a series of internal representations, starting with an abstract syntax tree, and progressing to a sequence of instructions that can be directly executed by the computer. The Lispy parser is implemented with the function parse.
+    
+2.  **Execution:** The internal representation is then processed according to the _semantic rules_ of the language, thereby carrying out the computation. Lispy's execution function is called eval (note this shadows Python's built-in function of the same name).
+
+Here is a picture of the interpretation process:
+
+    > program ➡ parse ➡ abstract-syntax-tree ➡ eval ➡ result
+
+And here is a short example of what we want parse and eval to be able to do (begin evaluates each expression in order and returns the final one):
+
+    >> program \= "(begin (define r 10) (\* pi (\* r r)))"  
+    
+    >>> parse(program)  
+    ['begin', \['define', 'r', 10\], \['\*', 'pi', \['\*', 'r', 'r'\]\]\]  
+    
+    >>> eval(parse(program))  
+    314.1592653589793
+
+## Type Definitions
+
+Let's be explicit about our representations for Scheme objects:
+
+    Symbol = str              # A Scheme Symbol is implemented as a Python str  
+    Number = (int, float)     # A Scheme Number is implemented as a Python int or float  
+    Atom   = (Symbol, Number) # A Scheme Atom is a Symbol or Number  
+    List   = list             # A Scheme List is implemented as a Python list  
+    Exp    = (Atom, List)     # A Scheme expression is an Atom or List  
+    Env    = dict             # A Scheme environment (defined below) is a mapping of {variable: value}  
+
+## Parsing: parse, tokenize and read\_from\_tokens
+
+Parsing is traditionally separated into two parts: _lexical analysis_, in which the input character string is broken up into a sequence of _tokens_, and _syntactic analysis_, in which the tokens are assembled into an abstract syntax tree. The Lispy tokens are parentheses, symbols, and numbers. There are many tools for lexical analysis (such as Mike Lesk and Eric Schmidt's [lex](http://dinosaur.compilertools.net/#lex)), but for now we'll use a very simple tool: Python's `str.split`. The function tokenize takes as input a string of characters; it adds spaces around each paren, and then calls `str.split` to get a list of tokens:
+
+    def tokenize(chars: str) \-\> list:
+        "Convert a string of characters into a list of tokens."
+        return chars.replace('(', ' ( ').replace(')', ' ) ').split()
+
+Here we apply tokenize to our sample program:
+
+    >>> program \= "(begin (define r 10) (\* pi (\* r r)))"  
+    >>> tokenize(program)  
+    ['(', 'begin', '(', 'define', 'r', '10', ')', '(', '\*', 'pi', '(', '\*', 'r', 'r', ')', ')', ')'\]
+
+Our function parse will take a string representation of a program as input, call tokenize to get a list of tokens, and then call read\_from\_tokens to assemble an abstract syntax tree. read\_from\_tokens looks at the first token; if it is a ')' that's a syntax error. If it is a '(', then we start building up a list of sub-expressions until we hit a matching ')'. Any non-parenthesis token must be a symbol or number. We'll let Python make the distinction between them: for each non-paren token, first try to interpret it as an int, then as a float, and if it is neither of those, it must be a symbol. Here is the parser:
+
+    def parse(program: str) -> Exp:
+        "Read a Scheme expression from a string."
+        return read_from_tokens(tokenize(program))
+  
+    def read_from_tokens(tokens: list) -> Exp:
+        "Read an expression from a sequence of tokens."    
+        if len(tokens) == 0:
+            raise SyntaxError('unexpected EOF')
+        token = tokens.pop(0)
+        if token == '(':
+            L = []
+            while tokens[0] != ')':
+                L.append(read_from_tokens(tokens))
+            tokens.pop(0) # pop off ')'
+            return L
+        elif token == ')':
+            raise SyntaxError('unexpected )')
+        else:
+            return atom(token)  
+  
+    def atom(token: str) -> Atom:
+        "Numbers become numbers; every other token is a symbol."
+        try: return int(token)
+        except ValueError:
+            try: return float(token)
+            except ValueError:
+                return Symbol(token)
+
+`parse` works like this:
+
+    >>> program = "(begin (define r 10) (* pi (* r r)))"  
+    
+    >>> parse(program)  
+    ['begin', ['define', 'r', 10], ['*', 'pi', ['*', 'r', 'r']]]
+
+We're almost ready to define eval. But we need one more concept first.
+
+## Environments
+
+An environment is a mapping from variable names to their values. By default, eval will use a global environment that includes the names for a bunch of standard functions (like sqrt and max, and also operators like \*). This environment can be augmented with user-defined variables, using the expression (define _symbol value_).
+
+import math
+import operator as op
+def standard_env() -> Env:
+    "An environment with some Scheme standard procedures."
+    env = Env()
+    env.update(vars(math)) # sin, cos, sqrt, pi, ...
+    env.update({
+        '+':op.add, '-':op.sub, '\*':op.mul, '/':op.truediv,
+        '>':op.gt, '<':op.lt, '>=':op.ge, '<=':op.le, '=':op.eq,
+        'abs':     abs,
+        'append':  op.add,
+        'apply':   lambda proc, args: proc(*args),
+        'begin':   lambda *x: x[-1],
+        'car':     lambda x: x[0],
+        'cdr':     lambda x: x[1:],
+        'cons':    lambda x,y: [x] + y,
+        'eq?':     op.is_,
+        'expt':    pow,
+        'equal?':  op.eq,
+        'length':  len,
+        'list':    lambda *x: List(x),
+        'list?':   lambda x: isinstance(x, List),
+        'map':     map,
+        'max':     max,
+        'min':     min, 
+        'not':     op.not_,
+        'null?':   lambda x: x \== [],
+        'number?': lambda x: isinstance(x, Number),
+  		'print':   print,
+        'procedure?': callable,
+        'round':   round,
+        'symbol?': lambda x: isinstance(x, Symbol),
+    })
+    return env  
+  
+global_env = standard_env()
+
+## Evaluation: eval
+
+We are now ready for the implementation of eval. As a refresher, we repeat the table of Lispy Calculator forms:
+
+Expression | Syntax | Semantics and Example
+---------- | ------ | --------------------------------
+[variable reference](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.1) | _symbol_ | A symbol is interpreted as a variable name; its value is the variable's value. Example: `r ⇒ 10` (assuming r was previously defined to be 10)
+[constant literal](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.2) | _number_ | A number evaluates to itself.  Examples: `12 ⇒ 12` _or_ `-3.45e+6 ⇒ -3.45e+6`
+[conditional](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.5) | `(if` _test conseq alt_`)` | Evaluate _test_; if true, evaluate and return _conseq_; otherwise _alt_.  Example: `(if (> 10 20) (+ 1 1) (+ 3 3)) ⇒ 6`
+[definition](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-8.html#%_sec_5.2) | `(define` _symbol_ _exp_`)` | Define a new variable and give it the value of evaluating the expression _exp_.  Examples: `(define r 10)`
+[procedure call](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.3) | `(`_proc arg..._`)` | If _proc_ is anything other than one of the symbols if, define, or quote then it is treated as a procedure. Evaluate _proc_ and all the _args_, and then the procedure is applied to the list of _arg_ values. Example: `(sqrt (* 2 8))` ⇒ `4.0`
+
+Here is the code for eval, which closely follows the table:
+
+    def eval(x: Exp, env=global_env) -> Exp:
+        "Evaluate an expression in an environment."
+        if isinstance(x, Symbol):               # variable reference
+            return env[x]
+        elif isinstance(x, Number):             # constant number
+            return x
+        elif x[0] == 'if':                      # conditional
+            (_, test, conseq, alt) = x  
+            exp = (conseq if eval(test, env) else alt)
+            return eval(exp, env)
+        elif x[0] == 'define':                  # definition
+            (_, symbol, exp) = x
+            env[symbol] = eval(exp, env)
+        else:                                   # procedure call
+            proc = eval(x[0], env)
+            args = [eval(arg, env) for arg in x[1:]]
+            return proc(\*args)
+
+_We're done!_ You can see it all in action:
+
+    >>> eval(parse("(begin (define r 10) (\* pi (\* r r)))"))  
+    314.1592653589793
+
+## Interaction: A REPL
+
+It is tedious to have to enter `eval(parse("..."))` all the time. One of Lisp's great legacies is the notion of an interactive read-eval-print loop: a way for a programmer to enter an expression, and see it immediately read, evaluated, and printed, without having to go through a lengthy build/compile/run cycle. So let's define the function repl (which stands for read-eval-print-loop), and the function schemestr which returns a string representing a Scheme object.
+
+    def repl(prompt='lis.py> '):
+        "A prompt-read-eval-print loop."
+        while True:
+            val = eval(parse(raw_input(prompt)))
+            if val is not None:
+                 print(schemestr(val))  
+    
+    def schemestr(exp):
+        "Convert a Python object back into a Scheme-readable string."
+        if isinstance(exp, List):
+            return '(' + ' '.join(map(schemestr, exp)) + ')'
+        else:
+            return str(exp)
+
+Here is repl in action:
+
+    >>> repl()  
+    lis.py> (define r 10)  
+    lis.py> (* pi (* r r))  
+    314.159265359  
+    lis.py> (if (> (* 11 11) 120) (* 7 6) oops)  
+    42  
+    lis.py> (list (+ 1 1) (+ 2 2) (* 2 3) (expt 2 3))  
+    lis.py> 
+
+## Language 2: Full Lispy
+
+We will now extend our language with three new special forms, giving us a much more nearly-complete Scheme subset:
+
+Expression | Syntax | Semantics and Example
+---------- | ------ | -----------------------
+[quotation](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.2) | `(quote` _exp_`)` | Return the _exp_ literally; do not evaluate it.  Example: `(quote (+ 1 2))` ⇒ `(+ 1 2)`
+[assignment](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.6) | `(set!` _symbol exp_`)` | Evaluate _exp_ and assign that value to _symbol_, which must have been previously defined (with a define or as a parameter to an enclosing procedure). Example: (set! r2 (\* r r))
+[procedure](http://www.schemers.org/Documents/Standards/R5RS/HTML/r5rs-Z-H-7.html#%_sec_4.1.4) | `(lambda (`_symbol..._`)` _exp_`)` | Create a procedure with parameter(s) named _symbol..._ and _exp_ as the body.  Example: `(lambda (r) (* pi (* r r)))`
+
+The lambda special form (an obscure nomenclature choice that refers to Alonzo Church's [lambda calculus](http://en.wikipedia.org/wiki/Lambda_calculus)) creates a procedure. We want procedures to work like this:
+
+    lis.py> (define circle-area (lambda (r) (* pi (* r r)))  
+    lis.py> (circle-area (+ 5 5))  
+    314.159265359
+
+There are two steps here. In the first step, the lambda expression is evaluated to create a procedure, one which refers to the global variables `pi` and `*`, takes a single parameter, which it calls r. This procedure is used as the value of the new variable circle-area. In the second step, the procedure we just defined is the value of circle-area, so it is called, with the value 10 as the argument. We want r to take on the value 10, but it wouldn't do to just set r to 10 in the global environment. What if we were using r for some other purpose? We wouldn't want a call to circle-area to alter that value. Instead, we want to arrange for there to be a _local_ variable named r that we can set to 10 without worrying about interfering with any global variable that happens to have the same name. The process for calling a procedure introduces these new local variable(s), binding each symbol in the parameter list of. the function to the corresponding value in the argument list of the function call.
+
+## Redefining Env as a Class
+
+To handle local variables, we will redefine Env to be a subclass of dict. When we evaluate (circle-area (+ 5 5)), we will fetch the procedure body, (* pi (* r r)), and evaluate it in an environment that has r as the sole local variable (with value 10), but also has the global environment as the "outer" environment; it is there that we will find the values of `*` and `pi`.
+
+When we look up a variable in such a nested environment, we look first at the innermost level, but if we don't find the variable name there, we move to the next outer level. Procedures and environments are intertwined, so let's define them together:
+
+    class Env(dict):
+        "An environment: a dict of {'var': val} pairs, with an outer Env."
+        def __init__(self, parms=(), args=(), outer=None):
+            self.update(zip(parms, args))
+            self.outer = outer
+        def find(self, var):
+            "Find the innermost Env where var appears."
+            return self if (var in self) else self.outer.find(var)  
+  
+    class Procedure(object):
+        "A user-defined Scheme procedure."
+        def __init__(self, parms, body, env):
+            self.parms, self.body, self.env = parms, body, env
+        def __call__(self, \*args):
+            return eval(self.body, Env(self.parms, args, self.env))
+     
+    global_env = standard_env()
+
+We see that every procedure has three components: a list of parameter names, a body expression, and an environment that tells us what other variables are accessible from the body. For a procedure defined at the top level this will be the global environment, but it is also possible for a procedure to refer to the local variables of the environment in which it was _defined_ (and not the environment in which it is _called_).
+
+An environment is a subclass of dict, so it has all the methods that dict has. In addition there are two methods: the constructor `__init__` builds a new environment by taking a list of parameter names and a corresponding list of argument values, and creating a new environment that has those {variable: value} pairs as the inner part, and also refers to the given outer environment. The method find is used to find the right environment for a variable: either the inner one or an outer one.
+
+To see how these all go together, here is the new definition of eval. Note that the clause for variable reference has changed: we now have to call env.find(x) to find at what level the variable x exists; then we can fetch the value of x from that level. (The clause for define has not changed, because a define always adds a new variable to the innermost environment.) There are two new clauses: for set!, we find the environment level where the variable exists and set it to a new value. With lambda, we create a new procedure object with the given parameter list, body, and environment.
+
+    def eval(x, env=global_env):
+        "Evaluate an expression in an environment."
+        if isinstance(x, Symbol):    # variable reference
+            return env.find(x)[x]
+        elif not isinstance(x, List):# constant 
+            return x   
+        op, *args = x       
+        if op == 'quote':            # quotation
+            return args[0]
+        elif op == 'if':             # conditional
+            (test, conseq, alt) = args
+            exp = (conseq if eval(test, env) else alt)
+            return eval(exp, env)
+        elif op == 'define':         # definition
+            (symbol, exp) = args
+            env[symbol] = eval(exp, env)
+        elif op == 'set!':           # assignment
+            (symbol, exp) = args
+            env.find(symbol)[symbol] = eval(exp, env)
+        elif op == 'lambda':         # procedure
+            (parms, body) = args
+            return Procedure(parms, body, env)
+        else:                        # procedure call
+            proc = eval(op, env)
+            vals = [eval(arg, env) for arg in args]
+            return proc(*vals)
+
+
+Let's see what we can do now:
+
+    >>> repl()
+    lis.py> (define circle-area (lambda (r) (* pi (* r r))))
+    lis.py> (circle-area 3)
+    28.274333877
+    lis.py> (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))
+    lis.py> (fact 10)
+    3628800
+    lis.py> (fact 100)
+    9332621544394415268169923885626670049071596826438162146859296389521759999322991
+    5608941463976156518286253697920827223758251185210916864000000000000000000000000
+    lis.py> (circle-area (fact 10))
+    4.1369087198e+13
+    lis.py> (define first car)
+    lis.py> (define rest cdr)
+    lis.py> (define count (lambda (item L) (if L (+ (equal? item (first L)) (count item (rest L))) 0)))
+    lis.py> (count 0 (list 0 1 2 3 0 0))
+    3
+    lis.py> (count (quote the) (quote (the more the merrier the bigger the better)))
+    4
+    lis.py> (define twice (lambda (x) (* 2 x)))
+    lis.py> (twice 5)
+    10
+    lis.py> (define repeat (lambda (f) (lambda (x) (f (f x)))))
+    lis.py> ((repeat twice) 10)
+    40
+    lis.py> ((repeat (repeat twice)) 10)
+    160
+    lis.py> ((repeat (repeat (repeat twice))) 10)
+    2560
+    lis.py> ((repeat (repeat (repeat (repeat twice)))) 10)
+    655360
+    lis.py> (pow 2 16)
+    65536.0
+    lis.py> (define fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2))))))
+    lis.py> (define range (lambda (a b) (if (= a b) (quote ()) (cons a (range (+ a 1) b)))))
+    lis.py> (range 0 10)
+    (0 1 2 3 4 5 6 7 8 9)
+    lis.py> (map fib (range 0 10))
+    (1 1 2 3 5 8 13 21 34 55)
+    lis.py> (map fib (range 0 20))
+    (1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 987 1597 2584 4181 6765)
+
+We now have a language with procedures, variables, conditionals (if), and sequential execution (the begin procedure). If you are familiar with other languages, you might think that a while or for loop would be needed, but Scheme manages to do without these just fine. The Scheme report says "Scheme demonstrates that a very small number of rules for forming expressions, with no restrictions on how they are composed, suffice to form a practical and efficient programming language." In Scheme you iterate by defining recursive functions.
 
 ---
 
@@ -434,3 +766,12 @@ python lispytest.py
 # [jscheme](https://norvig.com/jscheme.html)
 
 An interpreter for Scheme R4RS written in Java 1.1 (version 1.4 released in April 98, according to Norvig).
+
+---
+
+# java
+
+This directory contains my efforts at porting lis.py over to a Java implementation. It's well less-finished and less-elegant than Norvig's JScheme, but I'm also going for a slightly different goal in that I want pieces of this to be usable in other contexts beyond "just" a Scheme interpreter. For example, the `SExprReader` is a class I want to be able to use in other contexts.
+
+(Which means, interestingly enough, that I should probably strengthen it a little bit--in the abstract, an sexpr is either a list or an atom, and atoms can in turn be ints, floats, names, or strings, and my code currently doesn't really differentiate between those at all well....)
+

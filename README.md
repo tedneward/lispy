@@ -38,12 +38,12 @@ Here is a picture of the interpretation process:
 
 And here is a short example of what we want parse and eval to be able to do (begin evaluates each expression in order and returns the final one):
 
-    >> program \= "(begin (define r 10) (\* pi (\* r r)))"  
-    
-    >>> parse(program)  
-    ['begin', \['define', 'r', 10\], \['\*', 'pi', \['\*', 'r', 'r'\]\]\]  
-    
-    >>> eval(parse(program))  
+    >> program = "(begin (define r 10) (* pi (* r r)))"
+
+    >>> parse(program)
+    ['begin', ['define', 'r', 10], ['*', 'pi', ['*', 'r', 'r']]]
+
+    >>> eval(parse(program))
     314.1592653589793
 
 ## Type Definitions
@@ -61,45 +61,45 @@ Let's be explicit about our representations for Scheme objects:
 
 Parsing is traditionally separated into two parts: _lexical analysis_, in which the input character string is broken up into a sequence of _tokens_, and _syntactic analysis_, in which the tokens are assembled into an abstract syntax tree. The Lispy tokens are parentheses, symbols, and numbers. There are many tools for lexical analysis (such as Mike Lesk and Eric Schmidt's [lex](http://dinosaur.compilertools.net/#lex)), but for now we'll use a very simple tool: Python's `str.split`. The function tokenize takes as input a string of characters; it adds spaces around each paren, and then calls `str.split` to get a list of tokens:
 
-    def tokenize(chars: str) \-\> list:
-        "Convert a string of characters into a list of tokens."
-        return chars.replace('(', ' ( ').replace(')', ' ) ').split()
+    def tokenize(chars: str) -> list:
+        "Convert a string of characters into a list of tokens."
+        return chars.replace('(', ' ( ').replace(')', ' ) ').split()
 
 Here we apply tokenize to our sample program:
 
-    >>> program \= "(begin (define r 10) (\* pi (\* r r)))"  
-    >>> tokenize(program)  
-    ['(', 'begin', '(', 'define', 'r', '10', ')', '(', '\*', 'pi', '(', '\*', 'r', 'r', ')', ')', ')'\]
+    >>> program = "(begin (define r 10) (* pi (* r r)))"
+    >>> tokenize(program)
+    ['(', 'begin', '(', 'define', 'r', '10', ')', '(', '*', 'pi', '(', '*', 'r', 'r', ')', ')', ')']
 
 Our function parse will take a string representation of a program as input, call tokenize to get a list of tokens, and then call read\_from\_tokens to assemble an abstract syntax tree. read\_from\_tokens looks at the first token; if it is a ')' that's a syntax error. If it is a '(', then we start building up a list of sub-expressions until we hit a matching ')'. Any non-parenthesis token must be a symbol or number. We'll let Python make the distinction between them: for each non-paren token, first try to interpret it as an int, then as a float, and if it is neither of those, it must be a symbol. Here is the parser:
 
     def parse(program: str) -> Exp:
-        "Read a Scheme expression from a string."
-        return read_from_tokens(tokenize(program))
-  
+        "Read a Scheme expression from a string."
+        return read_from_tokens(tokenize(program))
+
     def read_from_tokens(tokens: list) -> Exp:
-        "Read an expression from a sequence of tokens."    
+        "Read an expression from a sequence of tokens."
         if len(tokens) == 0:
-            raise SyntaxError('unexpected EOF')
-        token = tokens.pop(0)
-        if token == '(':
-            L = []
-            while tokens[0] != ')':
-                L.append(read_from_tokens(tokens))
-            tokens.pop(0) # pop off ')'
-            return L
-        elif token == ')':
-            raise SyntaxError('unexpected )')
-        else:
-            return atom(token)  
-  
+            raise SyntaxError('unexpected EOF')
+        token = tokens.pop(0)
+        if token == '(':
+            L = []
+            while tokens[0] != ')':
+                L.append(read_from_tokens(tokens))
+            tokens.pop(0) # pop off ')'
+            return L
+        elif token == ')':
+            raise SyntaxError('unexpected )')
+        else:
+            return atom(token)
+
     def atom(token: str) -> Atom:
-        "Numbers become numbers; every other token is a symbol."
-        try: return int(token)
-        except ValueError:
-            try: return float(token)
-            except ValueError:
-                return Symbol(token)
+        "Numbers become numbers; every other token is a symbol."
+        try: return int(token)
+        except ValueError:
+            try: return float(token)
+            except ValueError:
+                return Symbol(token)
 
 `parse` works like this:
 

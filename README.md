@@ -255,7 +255,7 @@ When we look up a variable in such a nested environment, we look first at the in
         "A user-defined Scheme procedure."
         def __init__(self, parms, body, env):
             self.parms, self.body, self.env = parms, body, env
-        def __call__(self, \*args):
+        def __call__(self, *args):
             return eval(self.body, Env(self.parms, args, self.env))
      
     global_env = standard_env()
@@ -361,18 +361,18 @@ Now, an old data type that becomes new:
 
 Here is the implementation of the new Symbol class:
 
-    class Symbol(str): pass  
-    
-    def Sym(s, symbol\_table\={}):
-        "Find or create unique Symbol entry for str s in symbol table."
-        if s not in symbol\_table: symbol\_table\[s\] \= Symbol(s)
-        return symbol\_table\[s\]  
-    
-    \_quote, \_if, \_set, \_define, \_lambda, \_begin, \_definemacro, \= map(Sym, 
-    "quote   if   set!  define   lambda   begin   define-macro".split())  
-    
-    \_quasiquote, \_unquote, \_unquotesplicing \= map(Sym,  
-    "quasiquote   unquote   unquote-splicing".split())
+    class Symbol(str): pass
+
+    def Sym(s, symbol_table={}):
+        "Find or create unique Symbol entry for str s in symbol table."
+        if s not in symbol_table: symbol_table[s] = Symbol(s)
+        return symbol_table[s]
+
+    _quote, _if, _set, _define, _lambda, _begin, _definemacro, = map(Sym, 
+    "quote   if   set!  define   lambda   begin   define-macro".split())
+
+    _quasiquote, _unquote, _unquotesplicing = map(Sym,
+    "quasiquote   unquote   unquote-splicing".split())
 
 We'll show the rest soon.
 
@@ -385,89 +385,89 @@ The tokens #t and #f are the True and False literals, respectively. The single q
 In the previous version of Lispy, all input was read from strings. In this version we have introduced ports (also known as file objects or streams) and will read from them. This makes the read-eval-print-loop (repl) much more convenient: instead of insisting that an input expression must fit on one line, we can now read tokens until we get a complete expression, even if it spans several lines. Also, errors are caught and printed, much as the Python interactive loop does. Here is the InPort (input port) class:
 
     class InPort(object):
-        "An input port. Retains a line of chars."
-        tokenizer \= r'''\\s\*(,@|\[('\`,)\]|"(?:\[\\\\\].|\[^\\\\"\])\*"|;.\*|\[^\\s('"\`,;)\]\*)(.\*)'''  
-        def \_\_init\_\_(self, file):  
-            self.file = file; self.line = ''  
-        def next\_token(self):  
-            "Return the next token, reading new text into line buffer if needed."  
-            while True:  
-                if self.line == '': self.line = self.file.readline()  
-                if self.line == '': return eof\_object  
-                token, self.line = re.match(InPort.tokenizer, self.line).groups()  
-                if token != '' and not token.startswith(';'):  
-                    return token
+        "An input port. Retains a line of chars."
+        tokenizer = r'''\s*(,@|[('`,)]|"(?:[\\].|[^\\"])*"|;.*|[^\s('"`,;)]*)(.*)'''
+        def __init__(self, file):
+            self.file = file; self.line = ''
+        def next_token(self):
+            "Return the next token, reading new text into line buffer if needed."
+            while True:
+                if self.line == '': self.line = self.file.readline()
+                if self.line == '': return eof_object
+                token, self.line = re.match(InPort.tokenizer, self.line).groups()
+                if token != '' and not token.startswith(';'):
+                    return token
 
 The basic design for the read function follows a suggestion (with working code) from Darius Bacon (who contributed several other improvements as well).
 
-    eof\_object \= Symbol('#<eof-object>') \# Note: uninterned; can't be read  
-    
+    eof_object = Symbol('#<eof-object>') # Note: uninterned; can't be read
+
     def readchar(inport):
-        "Read the next character from an input port."
-        if inport.line != '':
-            ch, inport.line \= inport.line\[0\], inport.line\[1:\]
-            return ch
-        else:
-            return inport.file.read(1) or eof\_object
-    
+        "Read the next character from an input port."
+        if inport.line != '':
+            ch, inport.line = inport.line[0], inport.line[1:]
+            return ch
+        else:
+            return inport.file.read(1) or eof_object
+
     def read(inport):
-        "Read a Scheme expression from an input port."
-        def read\_ahead(token):
-            if '(' \== token:
-                L \= \[\]
-                while True:
-                    token \= inport.next\_token()
-                    if token \== ')': return L
-                    else: L.append(read\_ahead(token))
-            elif ')' \== token: raise SyntaxError('unexpected )')
-            elif token in quotes: return \[quotes\[token\], read(inport)\]
-            elif token is eof\_object: raise SyntaxError('unexpected EOF in list')
-            else: return atom(token)
-        \# body of read:
-        token1 \= inport.next\_token()
-        return eof\_object if token1 is eof\_object else read\_ahead(token1)
-     
-    quotes \= {"'":\_quote, "\`":\_quasiquote, ",":\_unquote, ",@":\_unquotesplicing}  
-    
+        "Read a Scheme expression from an input port."
+        def read_ahead(token):
+            if '(' == token: 
+                L = []
+                while True:
+                    token = inport.next_token()
+                    if token == ')': return L
+                    else: L.append(read_ahead(token))
+            elif ')' == token: raise SyntaxError('unexpected )')
+            elif token in quotes: return [quotes[token], read(inport)]
+            elif token is eof_object: raise SyntaxError('unexpected EOF in list')
+            else: return atom(token)
+        # body of read:
+        token1 = inport.next_token()
+        return eof_object if token1 is eof_object else read_ahead(token1)
+
+    quotes = {"'":_quote, "`":_quasiquote, ",":_unquote, ",@":_unquotesplicing}
+
     def atom(token):
-        'Numbers become numbers; #t and #f are booleans; "..." string; otherwise Symbol.'
-        if token \== '#t': return True
-        elif token \== '#f': return False
-        elif token\[0\] \== '"': return token\[1:-1\].decode('string\_escape')
-        try: return int(token)
-        except ValueError:
-            try: return float(token)
-            except ValueError:
-                try: return complex(token.replace('i', 'j', 1))
-                except ValueError:
-                    return Sym(token)  
-    
-    def to\_string(x):
-        "Convert a Python object back into a Lisp-readable string."
-        if x is True: return "#t"
-        elif x is False: return "#f"
-        elif isa(x, Symbol): return x
-        elif isa(x, str): return '"%s"' % x.encode('string\_escape').replace('"',r'\\"')
-        elif isa(x, list): return '('+' '.join(map(to\_string, x))+')'
-        elif isa(x, complex): return str(x).replace('j', 'i')
-        else: return str(x)  
-    
+        'Numbers become numbers; #t and #f are booleans; "..." string; otherwise Symbol.'
+        if token == '#t': return True
+        elif token == '#f': return False
+        elif token[0] == '"': return token[1:-1].decode('string_escape')
+        try: return int(token)
+        except ValueError:
+            try: return float(token)
+            except ValueError:
+                try: return complex(token.replace('i', 'j', 1))
+                except ValueError:
+                    return Sym(token)
+
+    def to_string(x):
+        "Convert a Python object back into a Lisp-readable string."
+        if x is True: return "#t"
+        elif x is False: return "#f"
+        elif isa(x, Symbol): return x
+        elif isa(x, str): return '"%s"' % x.encode('string_escape').replace('"',r'\"')
+        elif isa(x, list): return '('+' '.join(map(to_string, x))+')'
+        elif isa(x, complex): return str(x).replace('j', 'i')
+        else: return str(x)
+
     def load(filename):
-        "Eval every expression from a file."
-        repl(None, InPort(open(filename)), None)  
-    
-    def repl(prompt\='lispy> ', inport\=InPort(sys.stdin), out\=sys.stdout):
-        "A prompt-read-eval-print loop."
-        sys.stderr.write("Lispy version 2.0\\n")
-        while True:
-            try:
-                if prompt: sys.stderr.write(prompt)
-                x \= parse(inport)
-                if x is eof\_object: return
-                val \= eval(x)
-                if val is not None and out: print \>> out, to\_string(val)
-            except Exception as e:
-                print '%s: %s' % (type(e).\_\_name\_\_, e)
+        "Eval every expression from a file."
+        repl(None, InPort(open(filename)), None)
+
+    def repl(prompt='lispy> ', inport=InPort(sys.stdin), out=sys.stdout):
+        "A prompt-read-eval-print loop."
+        sys.stderr.write("Lispy version 2.0\n")
+        while True:
+            try:
+                if prompt: sys.stderr.write(prompt)
+                x = parse(inport)
+                if x is eof_object: return
+                val = eval(x)
+                if val is not None and out: print >> out, to_string(val)
+            except Exception as e:
+                print '%s: %s' % (type(e).__name__, e)
 
 Here we see how the read-eval-print loop is improved:
 
